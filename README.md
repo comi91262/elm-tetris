@@ -1,2 +1,4 @@
 # elm-tetris
-(For practice, ) Implementation of tetris in Elm.
+
+Tetris in Elm.
+
