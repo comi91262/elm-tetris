@@ -1,0 +1,20 @@
+{
+  "name": "elm-tetrisl",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "elm": "^0.19.0-bugfix2"
+  },
+  "scripts": {
+    "build": "elm make src/Main.elm --output dest/index.html",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ykonomi/elm-tetirs.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "description": ""
+}
