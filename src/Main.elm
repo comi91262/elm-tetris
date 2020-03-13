@@ -1,4 +1,4 @@
-module Main exposing (Direction(..), Model, Msg(..), Pivot, Shape(..), Tile(..), canMove, createTetrimino, deleteLine, deleteTetorimino, generateBlock, getPivot, getShape, init, intToShape, isTetrimino, isWallorBlack, keyDecoder, main, moveTetrimino, putTetorimino, stage, subscriptions, tileToInt, toBlock, toDirection, update, view, viewTile)
+module Main exposing (Direction(..), Model, Msg(..), Pivot, Shape(..), Tile(..), canMove, createTetrimino, deleteLine, deleteTetorimino, generateBlock, getPivot, getShape, init, intToShape, isTetrimino, isWallorBlack, keyDecoder, main, moveTetrimino, putTetorimino, stage, subscriptions, toBlock, toDirection, update, view, viewTile)
 
 import Browser
 import Browser.Events exposing (onKeyDown)
