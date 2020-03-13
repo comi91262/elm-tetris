@@ -1,8 +1,7 @@
-module Main exposing (main, view)
+module Main exposing (Direction(..), Model, Msg(..), Pivot, Shape(..), Tile(..), canMove, createTetrimino, deleteLine, deleteTetorimino, generateBlock, getPivot, getShape, init, intToShape, isTetrimino, isWallorBlack, keyDecoder, main, moveTetrimino, putTetorimino, stage, subscriptions, tileToInt, toBlock, toDirection, update, view, viewTile)
 
 import Browser
 import Browser.Events exposing (onKeyDown)
-import Debug
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -33,7 +32,7 @@ main =
 -- MODEL
 
 
-type Tetrimino
+type Shape
     = I
     | O
     | S
@@ -43,8 +42,8 @@ type Tetrimino
     | T
 
 
-intToTetrimino : Int -> Tetrimino
-intToTetrimino i =
+intToShape : Int -> Shape
+intToShape i =
     case i of
         0 ->
             I
@@ -68,37 +67,30 @@ intToTetrimino i =
             T
 
 
+type alias Pivot =
+    ( Int, Int )
+
+
 type Tile
     = None
     | Wall
     | Block
-    | Tetrimino Tetrimino
+    | Tetrimino Shape Pivot
 
 
 isTetrimino : Tile -> Bool
 isTetrimino tile =
     case tile of
-        Tetrimino _ ->
+        Tetrimino _ _ ->
             True
 
         _ ->
             False
 
 
-tileToInt : Tile -> Int
-tileToInt tile =
-    case tile of
-        None ->
-            0
-
-        Wall ->
-            1
-
-        Block ->
-            2
-
-        Tetrimino _ ->
-            3
+stage : { width : Int, height : Int, invisibleArea : Int }
+stage =
+    { width = 12, height = 21, invisibleArea = 12 * 2 }
 
 
 type alias Model =
@@ -109,61 +101,104 @@ type alias Model =
 init : ( Model, Cmd Msg )
 init =
     let
+        stageSize =
+            stage.width * stage.height
+
         board =
-            List.initialize 200 (\n -> None) ++ List.initialize 10 (\n -> Wall)
+            List.initialize (stage.invisibleArea + stageSize) (\n -> None)
+                |> List.indexedMap
+                    (\i tail ->
+                        let
+                            x =
+                                modBy stage.width i
+                        in
+                        if x == 0 || x == stage.width - 1 || i > stage.invisibleArea + stageSize - stage.width then
+                            Wall
+
+                        else
+                            tail
+                    )
     in
-    ( { board = putTetrimino 4 0 I board }, Cmd.none )
+    ( { board = createTetrimino I board }, Cmd.none )
 
 
-putTetrimino : Int -> Int -> Tetrimino -> List Tile -> List Tile
-putTetrimino x y tetrimino board =
-    case tetrimino of
+createTetrimino : Shape -> List Tile -> List Tile
+createTetrimino shape board =
+    let
+        toIndex ( x1, y1 ) =
+            y1 * stage.width + x1
+    in
+    case shape of
         I ->
-            List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino I) board
-                |> List.updateAt ((y + 1) * 10 + x - 1) (\_ -> Tetrimino I)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino I)
-                |> List.updateAt ((y + 1) * 10 + x + 2) (\_ -> Tetrimino I)
+            putTetorimino (List.map toIndex [ ( 3, 1 ), ( 4, 1 ), ( 5, 1 ), ( 6, 1 ) ]) shape ( 4, 0 ) board
 
         O ->
-            List.updateAt (y * 10 + x) (\_ -> Tetrimino O) board
-                |> List.updateAt (y * 10 + x + 1) (\_ -> Tetrimino O)
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino O)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino O)
+            putTetorimino (List.map toIndex [ ( 4, 0 ), ( 5, 0 ), ( 4, 1 ), ( 5, 1 ) ]) shape ( 4, 0 ) board
 
         T ->
-            List.updateAt (y * 10 + x) (\_ -> Tetrimino T) board
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino T)
-                |> List.updateAt ((y + 1) * 10 + x - 1) (\_ -> Tetrimino T)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino T)
+            putTetorimino (List.map toIndex [ ( 3, 1 ), ( 4, 0 ), ( 4, 1 ), ( 5, 1 ) ]) shape ( 4, 1 ) board
 
         J ->
-            List.updateAt (y * 10 + x - 1) (\_ -> Tetrimino J) board
-                |> List.updateAt ((y + 1) * 10 + x - 1) (\_ -> Tetrimino J)
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino J)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino J)
+            putTetorimino (List.map toIndex [ ( 3, 0 ), ( 3, 1 ), ( 4, 1 ), ( 5, 1 ) ]) shape ( 4, 1 ) board
 
         L ->
-            List.updateAt (y * 10 + x + 1) (\_ -> Tetrimino L) board
-                |> List.updateAt ((y + 1) * 10 + x - 1) (\_ -> Tetrimino L)
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino L)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino L)
+            putTetorimino (List.map toIndex [ ( 3, 1 ), ( 4, 1 ), ( 5, 0 ), ( 5, 1 ) ]) shape ( 4, 1 ) board
 
         S ->
-            List.updateAt (y * 10 + x) (\_ -> Tetrimino S) board
-                |> List.updateAt (y * 10 + x + 1) (\_ -> Tetrimino S)
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino S)
-                |> List.updateAt ((y + 1) * 10 + x - 1) (\_ -> Tetrimino S)
+            putTetorimino (List.map toIndex [ ( 3, 1 ), ( 4, 0 ), ( 4, 1 ), ( 5, 0 ) ]) shape ( 4, 1 ) board
 
         Z ->
-            List.updateAt (y * 10 + x - 1) (\_ -> Tetrimino Z) board
-                |> List.updateAt (y * 10 + x) (\_ -> Tetrimino Z)
-                |> List.updateAt ((y + 1) * 10 + x) (\_ -> Tetrimino Z)
-                |> List.updateAt ((y + 1) * 10 + x + 1) (\_ -> Tetrimino Z)
+            putTetorimino (List.map toIndex [ ( 3, 0 ), ( 4, 0 ), ( 4, 1 ), ( 5, 1 ) ]) shape ( 4, 1 ) board
 
 
 generateBlock : Cmd Msg
 generateBlock =
-    Random.map intToTetrimino (Random.int 0 6) |> Random.generate NewTetrimino
+    Random.map intToShape (Random.int 0 6) |> Random.generate NewTetrimino
+
+
+getPivot : List Int -> List Tile -> Pivot
+getPivot indices board =
+    List.head indices
+        |> Maybe.andThen (\index -> List.getAt index board)
+        |> Maybe.andThen
+            (\tail ->
+                case tail of
+                    Tetrimino _ pivot ->
+                        Just pivot
+
+                    _ ->
+                        Nothing
+            )
+        |> Maybe.withDefault ( 0, 0 )
+
+
+getShape : List Int -> List Tile -> Shape
+getShape indices board =
+    List.head indices
+        |> Maybe.andThen (\index -> List.getAt index board)
+        |> Maybe.andThen
+            (\x ->
+                case x of
+                    Tetrimino shape _ ->
+                        Just shape
+
+                    _ ->
+                        Nothing
+            )
+        |> Maybe.withDefault I
+
+
+isWallorBlack : Int -> List Tile -> Bool
+isWallorBlack index board =
+    case List.getAt index board of
+        Just Wall ->
+            True
+
+        Just Block ->
+            True
+
+        _ ->
+            False
 
 
 canMove : List Tile -> Direction -> Bool
@@ -171,27 +206,42 @@ canMove board direction =
     let
         indices =
             List.findIndices isTetrimino board
-
-        aux i b =
-            case List.getAt i b of
-                Just Wall ->
-                    False
-
-                Just Block ->
-                    False
-
-                _ ->
-                    True
     in
     case direction of
         Left ->
-            List.all (\i -> modBy 10 i /= 0 && aux (i - 1) board) indices
+            List.all (\i -> not (isWallorBlack (i - 1) board)) indices
 
         Right ->
-            List.all (\i -> modBy 10 i /= 9 && aux (i + 1) board) indices
+            List.all (\i -> not (isWallorBlack (i + 1) board)) indices
 
         Down ->
-            List.all (\i -> aux (i + 10) board) indices
+            List.all (\i -> not (isWallorBlack (i + stage.width) board)) indices
+
+        Up ->
+            let
+                shape =
+                    getShape indices board
+
+                ( pivotX, pivotY ) =
+                    getPivot indices board
+
+                updatedIndices =
+                    List.map (\i -> ( modBy stage.width i, i // stage.width )) indices
+                        |> List.map
+                            (\( x, y ) ->
+                                case shape of
+                                    I ->
+                                        ( pivotY - y + pivotX + 1, x - pivotX + pivotY )
+
+                                    O ->
+                                        ( x, y )
+
+                                    _ ->
+                                        ( pivotY - y + pivotX, x - pivotX + pivotY )
+                            )
+                        |> List.map (\( x, y ) -> y * stage.width + x)
+            in
+            List.all (\i -> not (isWallorBlack i board)) updatedIndices
 
         _ ->
             False
@@ -202,79 +252,88 @@ moveTetrimino board direction =
     let
         indices =
             List.findIndices isTetrimino board
+
+        shape =
+            getShape indices board
+
+        ( pivotX, pivotY ) =
+            getPivot indices board
     in
     case direction of
         Left ->
-            List.indexedMap
-                (\i ->
-                    \x ->
-                        case List.find ((==) i) indices of
-                            Just _ ->
-                                case List.find ((==) (i + 1)) indices of
-                                    Just _ ->
-                                        x
-
-                                    Nothing ->
-                                        None
-
-                            Nothing ->
-                                case List.find ((==) (i + 1)) indices of
-                                    Just index ->
-                                        List.getAt index board |> Maybe.withDefault x
-
-                                    Nothing ->
-                                        x
-                )
-                board
+            let
+                updatedIndices =
+                    List.map (\i -> i - 1) indices
+            in
+            deleteTetorimino board
+                |> putTetorimino updatedIndices shape ( pivotX - 1, pivotY )
 
         Right ->
-            List.indexedMap
-                (\i ->
-                    \x ->
-                        case List.find ((==) i) indices of
-                            Just _ ->
-                                case List.find ((==) (i - 1)) indices of
-                                    Just _ ->
-                                        x
-
-                                    Nothing ->
-                                        None
-
-                            Nothing ->
-                                case List.find ((==) (i - 1)) indices of
-                                    Just index ->
-                                        List.getAt index board |> Maybe.withDefault x
-
-                                    Nothing ->
-                                        x
-                )
-                board
+            let
+                updatedIndices =
+                    List.map (\i -> i + 1) indices
+            in
+            deleteTetorimino board
+                |> putTetorimino updatedIndices shape ( pivotX + 1, pivotY )
 
         Down ->
-            List.indexedMap
-                (\i ->
-                    \x ->
-                        case List.find ((==) i) indices of
-                            Just _ ->
-                                case List.find ((==) (i - 10)) indices of
-                                    Just _ ->
-                                        x
+            let
+                updatedIndices =
+                    List.map (\i -> i + stage.width) indices
+            in
+            deleteTetorimino board
+                |> putTetorimino updatedIndices shape ( pivotX, pivotY + 1 )
 
-                                    Nothing ->
-                                        None
+        Up ->
+            let
+                updatedIndices =
+                    List.map (\i -> ( modBy stage.width i, i // stage.width )) indices
+                        |> List.map
+                            (\( x, y ) ->
+                                case shape of
+                                    I ->
+                                        ( pivotY - y + pivotX + 1, x - pivotX + pivotY )
 
-                            Nothing ->
-                                case List.find ((==) (i - 10)) indices of
-                                    Just index ->
-                                        List.getAt index board |> Maybe.withDefault x
+                                    O ->
+                                        ( x, y )
 
-                                    Nothing ->
-                                        x
-                )
-                board
+                                    _ ->
+                                        ( pivotY - y + pivotX, x - pivotX + pivotY )
+                            )
+                        |> List.map (\( x, y ) -> y * stage.width + x)
+            in
+            deleteTetorimino board
+                |> putTetorimino updatedIndices shape ( pivotX, pivotY )
 
         _ ->
             board
+
+
+putTetorimino : List Int -> Shape -> Pivot -> List Tile -> List Tile
+putTetorimino indices shape pivot board =
+    List.indexedMap
+        (\index element ->
+            case List.find ((==) index) indices of
+                Just _ ->
+                    Tetrimino shape pivot
+
+                Nothing ->
+                    element
+        )
+        board
+
+
+deleteTetorimino : List Tile -> List Tile
+deleteTetorimino board =
+    List.map
+        (\x ->
+            if isTetrimino x then
+                None
+
+            else
+                x
+        )
+        board
 
 
 toBlock : List Tile -> List Tile
@@ -290,23 +349,37 @@ toBlock board =
         board
 
 
-vanishBlock : List Tile -> List Tile
-vanishBlock board =
-    List.groupsOf 10 board
+deleteLine : List Tile -> List Tile
+deleteLine board =
+    List.groupsOf stage.width board
         |> List.map
-            (\x ->
-                let
-                    sort =
-                        List.unique (List.map tileToInt x)
-                in
-                if List.length sort == 1 && List.head sort == Just (tileToInt Block) then
+            (\line ->
+                if List.count (\x -> x == Block) line == stage.width - 2 then
                     []
 
                 else
-                    x
+                    line
             )
         |> List.concat
-        |> (\b -> List.initialize (210 - List.length b) (\_ -> None) ++ b)
+        |> (\b ->
+                let
+                    newLines =
+                        List.initialize (stage.height * stage.width + stage.invisibleArea - List.length b) (\_ -> None)
+                            |> List.indexedMap
+                                (\i tail ->
+                                    let
+                                        x =
+                                            modBy stage.width i
+                                    in
+                                    if x == 0 || x == stage.width - 1 then
+                                        Wall
+
+                                    else
+                                        tail
+                                )
+                in
+                newLines ++ b
+           )
 
 
 
@@ -316,7 +389,7 @@ vanishBlock board =
 type Msg
     = Change Direction
     | Tick Time.Posix
-    | NewTetrimino Tetrimino
+    | NewTetrimino Shape
 
 
 type Direction
@@ -335,7 +408,7 @@ update msg model =
                 ( { board = moveTetrimino model.board Down }, Cmd.none )
 
             else
-                ( { board = toBlock model.board |> vanishBlock }, generateBlock )
+                ( { board = toBlock model.board |> deleteLine }, generateBlock )
 
         Change direction ->
             if canMove model.board direction then
@@ -344,8 +417,8 @@ update msg model =
             else
                 ( model, Cmd.none )
 
-        NewTetrimino x ->
-            ( { board = putTetrimino 4 0 x model.board }, Cmd.none )
+        NewTetrimino shape ->
+            ( { board = createTetrimino shape model.board }, Cmd.none )
 
 
 
@@ -379,7 +452,7 @@ toDirection string =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Time.every 100 Tick
+        [ Time.every 1000 Tick
         , onKeyDown (Decode.map Change keyDecoder)
         ]
 
@@ -390,7 +463,7 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-    layout [] (wrappedRow [ width (px 300) ] (List.map viewTile model.board))
+    layout [] (wrappedRow [ width (px (30 * stage.width)) ] (List.map viewTile (List.drop stage.invisibleArea model.board)))
 
 
 viewTile : Tile -> Element Msg
@@ -400,42 +473,46 @@ viewTile tile =
         , height (px 30)
         ]
     <|
+        let
+            makeTile color =
+                el [ width fill, height fill, color, Border.rounded 2 ] none
+        in
         case tile of
             None ->
-                el [ width fill, height fill, Background.color (rgb255 0 0 0), Border.rounded 2 ] none
+                makeTile (Background.color (rgb255 0 0 0))
 
             Wall ->
-                el [ width fill, height fill, Background.color (rgb255 128 128 128), Border.rounded 2 ] none
+                makeTile (Background.color (rgb255 128 128 128))
 
             Block ->
-                el [ width fill, height fill, Background.color (rgb255 117 83 43), Border.rounded 2 ] none
+                makeTile (Background.color (rgb255 117 83 43))
 
-            Tetrimino sort ->
-                case sort of
+            Tetrimino shape _ ->
+                case shape of
                     I ->
                         -- 水色
-                        el [ width fill, height fill, Background.color (rgb255 157 204 224), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 157 204 224))
 
                     O ->
                         -- 黄色
-                        el [ width fill, height fill, Background.color (rgb255 255 255 102), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 255 255 102))
 
                     S ->
                         -- 緑
-                        el [ width fill, height fill, Background.color (rgb255 0 153 102), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 0 153 102))
 
                     Z ->
                         -- 赤
-                        el [ width fill, height fill, Background.color (rgb255 235 50 40), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 235 50 40))
 
                     J ->
                         -- 青
-                        el [ width fill, height fill, Background.color (rgb255 51 102 153), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 51 102 153))
 
                     L ->
                         -- オレンジ
-                        el [ width fill, height fill, Background.color (rgb255 239 129 15), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 239 129 15))
 
                     T ->
                         -- 紫
-                        el [ width fill, height fill, Background.color (rgb255 153 51 153), Border.rounded 2 ] none
+                        makeTile (Background.color (rgb255 153 51 153))
